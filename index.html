@@ -184,7 +184,9 @@
       }
 
       function render(now = new Date()) {
-        clockEl.textContent = timeFmt.format(now);
+        const timeStr = timeFmt.format(now);
+        clockEl.textContent = timeStr;
+        document.title = timeStr;
         dateEl.style.display = settings.showDate ? '' : 'none';
         if (settings.showDate) dateEl.textContent = dateFmt.format(now);
       }
