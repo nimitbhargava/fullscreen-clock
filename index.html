@@ -80,6 +80,32 @@
     .row:last-child { border-bottom: 0; }
     .row > label { font-size: 15px; color: var(--muted); }
     select, input[type="checkbox"] { font-size: 15px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--glass-border); background: var(--glass); color: var(--fg); }
+
+    /* --- Gradient Background --- */
+    @keyframes gradientShift {
+      0%, 100% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+    }
+    body.gradient-bg {
+      background: linear-gradient(-45deg, #0f0c29, #302b63, #24243e, #0a2a3e, #1a0a2e, #0f0c29) !important;
+      background-size: 600% 600% !important;
+      animation: gradientShift 60s ease infinite;
+    }
+    .theme-light body.gradient-bg {
+      background: linear-gradient(-45deg, #ffecd2, #fcb69f, #a1c4fd, #c2e9fb, #e0c3fc, #ffecd2) !important;
+      background-size: 600% 600% !important;
+    }
+    .theme-amoled body.gradient-bg {
+      background: linear-gradient(-45deg, #050510, #100515, #051015, #100a05, #080510, #050510) !important;
+      background-size: 600% 600% !important;
+    }
+
+    /* --- Tick Pulse --- */
+    @keyframes tickPulse {
+      from { opacity: 0.85; }
+      to { opacity: 1; }
+    }
+    .time.tick { animation: tickPulse 0.3s ease-out; }
   </style>
 </head>
 <body>
@@ -127,6 +153,10 @@
           <option value="light">Light</option>
         </select>
       </div>
+      <div class="row">
+        <label for="gradientBg">Gradient background</label>
+        <input id="gradientBg" type="checkbox" />
+      </div>
       <div style="display:flex; gap:10px; justify-content:flex-end; padding-top:14px">
         <button id="cancelBtn" class="btn" type="button">Close</button>
         <button id="saveBtn" class="btn" type="button">Save</button>
@@ -149,8 +179,9 @@
       const fontSel = $('fontSel');
       const themeSel = $('themeSel');
       const hint = $('hint');
+      const gradientBg = $('gradientBg');
 
-      const DEFAULTS = { showSeconds: true, showDate: true, use24h: undefined, font: 'sans', theme: 'dark' };
+      const DEFAULTS = { showSeconds: true, showDate: true, use24h: undefined, font: 'sans', theme: 'dark', gradient: false };
 
       // --- Settings persistence ---
       const store = {
@@ -171,6 +202,7 @@
         document.documentElement.classList.remove('theme-light','theme-amoled');
         if (settings.theme === 'light') document.documentElement.classList.add('theme-light');
         if (settings.theme === 'amoled') document.documentElement.classList.add('theme-amoled');
+        document.body.classList.toggle('gradient-bg', !!settings.gradient);
       }
 
       // Intl formatters (rebuilt when 12/24 or seconds changes)
@@ -183,10 +215,41 @@
         dateFmt = new Intl.DateTimeFormat(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
       }
 
+      // --- Dynamic Favicon ---
+      const favCanvas = document.createElement('canvas');
+      favCanvas.width = 32; favCanvas.height = 32;
+      const favCtx = favCanvas.getContext('2d');
+      let favLink = document.querySelector('link[rel="icon"]');
+      if (!favLink) { favLink = document.createElement('link'); favLink.rel = 'icon'; document.head.appendChild(favLink); }
+      let lastFavHour = -1;
+      function updateFavicon(now) {
+        const h = now.getHours();
+        if (h === lastFavHour) return;
+        lastFavHour = h;
+        favCtx.clearRect(0, 0, 32, 32);
+        favCtx.beginPath();
+        favCtx.arc(16, 16, 15, 0, Math.PI * 2);
+        favCtx.fillStyle = '#3a86ff';
+        favCtx.fill();
+        const label = (settings.use24h !== false) ? String(h).padStart(2, '0') : String(h % 12 || 12);
+        favCtx.fillStyle = '#fff';
+        favCtx.font = 'bold 16px sans-serif';
+        favCtx.textAlign = 'center';
+        favCtx.textBaseline = 'middle';
+        favCtx.fillText(label, 16, 17);
+        favLink.href = favCanvas.toDataURL('image/png');
+      }
+
       function render(now = new Date()) {
         const timeStr = timeFmt.format(now);
-        clockEl.textContent = timeStr;
+        if (clockEl.textContent !== timeStr) {
+          clockEl.classList.remove('tick');
+          void clockEl.offsetWidth;
+          clockEl.classList.add('tick');
+          clockEl.textContent = timeStr;
+        }
         document.title = timeStr;
+        updateFavicon(now);
         dateEl.style.display = settings.showDate ? '' : 'none';
         if (settings.showDate) dateEl.textContent = dateFmt.format(now);
       }
@@ -263,6 +326,7 @@
         use24h.checked = !!settings.use24h;
         fontSel.value = settings.font || 'sans';
         themeSel.value = settings.theme || 'dark';
+        gradientBg.checked = !!settings.gradient;
       }
       function openSettings() {
         syncControlsFromSettings();
@@ -278,7 +342,9 @@
         settings.use24h = use24h.checked;
         settings.font = fontSel.value;
         settings.theme = themeSel.value;
+        settings.gradient = gradientBg.checked;
         store.save(settings);
+        lastFavHour = -1;
         applyLook(); buildFormatters(); render();
         closeSettings();
       });
